@@ -1,5 +1,6 @@
 package com.github.edgarzed.zipGenerator;
 
+import java.io.BufferedOutputStream;
 import java.io.FileOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -19,7 +20,7 @@ public class Application {
     public static void main(String[] args) throws Exception {
         Scanner consoleIn = new Scanner(System.in);
         String pathParam;
-        int sizeParam;
+        long sizeParam;
         int amountParam;
         boolean ackParam;
 
@@ -31,9 +32,9 @@ public class Application {
         }
         if (args.length < 2) {
             System.out.println("Enter content size (Kbyte):");
-            sizeParam = consoleIn.nextInt();
+            sizeParam = consoleIn.nextLong();
         } else {
-            sizeParam = Integer.parseInt(args[1]);
+            sizeParam = Long.parseLong(args[1]);
         }
         if (args.length < 3) {
             System.out.println("Enter number of files:");
@@ -49,11 +50,11 @@ public class Application {
             ackParam = Boolean.parseBoolean(args[3]);
         }
 
+        byte[] oneKB = new byte[1024];
+        new Random().nextBytes(oneKB);
+
         DecimalFormat decimalFormat = new DecimalFormat("#.####", DecimalFormatSymbols.getInstance(Locale.ENGLISH));
         String sizeMb = decimalFormat.format(sizeParam / 1024.0);
-        sizeParam *= 1024;
-
-        Random random = new Random();
 
         LocalDateTime dateTime = LocalDateTime.now();
         String dateTimeFormatted = dateTime.format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss_"));
@@ -63,22 +64,24 @@ public class Application {
             System.out.println("Directory created");
         }
 
-        System.out.println("Creating " + amountParam + " zip files in " + pathParam + " with content size (Mbyte) = " + sizeMb + (ackParam ? " with .ack" : ""));
-        for (int i = 0, sizeRest = sizeParam; i < amountParam; i++, sizeRest = sizeParam) {
+        System.out.println("Creating " + amountParam + " zip files in " + pathParam + " with content size (Mbyte) = " + sizeMb + (ackParam ? " with .ack" : "") + "\n");
+        long start = System.currentTimeMillis();
+        for (int i = 0; i < amountParam; i++) {
             String fileName = dateTimeFormatted + sizeMb + "_" + i + ".zip";
 
             Path tempFile = Files.createFile(Paths.get(pathParam, fileName));
-            try (ZipOutputStream zOut = new ZipOutputStream(new FileOutputStream(tempFile.toFile()))) {
+            try (ZipOutputStream zOut = new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(tempFile.toFile())))) {
                 zOut.setLevel(0);
 
-                int byteInMB = 1048576;
-                for (int j = 0; sizeRest > 0; sizeRest -= byteInMB, j++) {
+                long sizeRest = sizeParam;
+
+                for (int j = 0; sizeRest > 0; sizeRest -= 1024, j++) {
                     ZipEntry zipEntry = new ZipEntry(j + ".txt");
                     zOut.putNextEntry(zipEntry);
 
-                    int entrySize = sizeRest >= byteInMB ? byteInMB : sizeRest;
+                    long entrySize = sizeRest >= 1024 ? 1024 : sizeRest;
                     for (int k = 0; k < entrySize; k++) {
-                        zOut.write(random.nextInt(256));
+                        zOut.write(oneKB);
                     }
 
                     zOut.closeEntry();
@@ -89,10 +92,12 @@ public class Application {
 
             if (ackParam) {
                 Files.createFile(Paths.get(pathParam, fileName + ".ack"));
-                System.out.println("+ .ack");
+                System.out.println("~.ack created.");
             }
         }
 
-        System.out.println("\nDone :)");
+        long time = (System.currentTimeMillis() - start) / 1000;
+
+        System.out.println("\nDone in " + time + "sec :)");
     }
 }
